@@ -1,7 +1,11 @@
+from keras import Model
 from keras._tf_keras.keras.preprocessing.image import ImageDataGenerator
+from keras.src.layers import GlobalAveragePooling2D
 from tensorflow import keras
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
 from tensorflow.keras import Sequential
+
+from keras._tf_keras.keras.applications import VGG16
 
 
 import matplotlib.pyplot as plt
@@ -12,7 +16,15 @@ def initDataGenerator():
     global trainDataGen
     global validationDataGen
 
-    trainDataGen = ImageDataGenerator(rescale=1.0 / 255)
+    trainDataGen = ImageDataGenerator(rescale=1.0 / 255)#,  # Normalizacja wartości pikseli
+                                      #rotation_range=40,  # Losowe obracanie obrazu w zakresie 40 stopni
+                                      #width_shift_range=0.2,  # Przesunięcie poziome obrazu o 20%
+                                      #height_shift_range=0.2,  # Przesunięcie pionowe obrazu o 20%
+                                      #shear_range=0.2,  # Pochylenie obrazu
+                                      #zoom_range=0.2,  # Losowe przybliżenie obrazu
+                                      #horizontal_flip=True,  # Losowe odbicie lustrzane w poziomie
+                                      #fill_mode='nearest')  # Wypełnienie pustych miejsc najbliższymi wartościami)
+
     validationDataGen = ImageDataGenerator(rescale=1. / 255)
 
 
@@ -21,10 +33,10 @@ def readImagesFromDirectory():
         global train_generator
         global validation_generator
 
-        train_generator = trainDataGen.flow_from_directory("images/train/", target_size=(200, 200), batch_size=32,
+        train_generator = trainDataGen.flow_from_directory("images/train/", target_size=(224, 224), batch_size=20,
                                                            class_mode='binary')
-        validation_generator = validationDataGen.flow_from_directory("images/validation/", target_size=(200, 200),
-                                                                     batch_size=32, class_mode='binary')
+        validation_generator = validationDataGen.flow_from_directory("images/validation/", target_size=(224, 224),
+                                                                     batch_size=20, class_mode='binary')
 
 
 # Funkcja pozwalajaca trenowac model
@@ -99,8 +111,41 @@ def drawGraph():
         print("No training history available.")
 
 
+
+# VGG-16 Model init
+
+def VGG_InitBaseModel():
+
+    global base_model
+    base_model = VGG16(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+
+    x = base_model.output
+    x = GlobalAveragePooling2D()(x)
+    x = Dense(1024, activation='relu')(x)
+
+    global predictions
+    predictions = Dense(1, activation='sigmoid')(x)
+
+def VGG_TrainingModel():
+
+    model = Model(inputs=base_model.input, outputs=predictions)
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+    # Trenuj model
+    global history
+    history = model.fit(train_generator, steps_per_epoch=100, epochs=10, validation_data=validation_generator, validation_steps=50)
+
+
 if __name__ == '__main__':
+
+    # My CNN Model init
     initDataGenerator()
     readImagesFromDirectory()
-    initTrainingModels()
+    #initTrainingModels()
+
+
+    # VGG-16 Model init
+    VGG_InitBaseModel()
+    VGG_TrainingModel()
+
     drawGraph()
